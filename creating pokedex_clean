@@ -1,0 +1,17 @@
+CREATE TABLE pokedex_clean AS
+SELECT 
+    pm.pokemon_id,
+    pm.name,
+    MAX(UPPER(pm.type1)) AS type1,
+    MAX(UPPER(pm.type2)) AS type2,
+    ps.hp,
+    ps.attack,
+    ps.defense,
+    pm.evolution_stage,
+    pm.evolves_to
+FROM pokedex_messy AS pm
+JOIN pokemon_stats AS ps
+    ON pm.pokemon_id = ps.pokemon_id
+   AND pm.name = ps.name
+GROUP BY pm.pokemon_id
+ORDER BY CAST(pm.pokemon_id AS integer) ASC;
