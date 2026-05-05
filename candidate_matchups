@@ -1,0 +1,78 @@
+CREATE TABLE candidate_matchups AS
+SELECT
+    pokedex_clean.name,
+    pokedex_clean.type1,
+    pokedex_clean.type2,
+    SUM(
+        (
+            SELECT CASE
+                WHEN effectiveness = 'super effective' THEN 2.0
+                WHEN effectiveness = 'not very effective' THEN 0.5
+                WHEN effectiveness = 'no effect' THEN 0.0
+                ELSE 1.0
+            END
+            FROM type_advantage
+            WHERE UPPER(attacking_type) = UPPER(pokedex_clean.type1)
+              AND UPPER(defending_type) = UPPER(misty_team.type1)
+            UNION ALL
+            SELECT 1.0
+            LIMIT 1
+        )
+        *
+        (
+            SELECT CASE
+                WHEN effectiveness = 'super effective' THEN 2.0
+                WHEN effectiveness = 'not very effective' THEN 0.5
+                WHEN effectiveness = 'no effect' THEN 0.0
+                ELSE 1.0
+            END
+            FROM type_advantage
+            WHERE UPPER(attacking_type) = UPPER(pokedex_clean.type1)
+              AND UPPER(defending_type) = UPPER(misty_team.type2)
+            UNION ALL
+            SELECT 1.0
+            LIMIT 1
+        )
+        *
+        (
+            SELECT CASE
+                WHEN effectiveness = 'super effective' THEN 2.0
+                WHEN effectiveness = 'not very effective' THEN 0.5
+                WHEN effectiveness = 'no effect' THEN 0.0
+                ELSE 1.0
+            END
+            FROM type_advantage
+            WHERE UPPER(attacking_type) = UPPER(pokedex_clean.type2)
+              AND UPPER(defending_type) = UPPER(misty_team.type1)
+            UNION ALL
+            SELECT 1.0
+            LIMIT 1
+        )
+        *
+        (
+            SELECT CASE
+                WHEN effectiveness = 'super effective' THEN 2.0
+                WHEN effectiveness = 'not very effective' THEN 0.5
+                WHEN effectiveness = 'no effect' THEN 0.0
+                ELSE 1.0
+            END
+            FROM type_advantage
+            WHERE UPPER(attacking_type) = UPPER(pokedex_clean.type2)
+              AND UPPER(defending_type) = UPPER(misty_team.type2)
+            UNION ALL
+            SELECT 1.0
+            LIMIT 1
+        )
+    ) AS total_advantage
+FROM pokedex_clean
+CROSS JOIN misty_team
+WHERE (
+    pokedex_clean.evolves_to IS NULL
+    OR pokedex_clean.evolves_to = ''
+    OR pokedex_clean.evolves_to = 'None'
+)
+GROUP BY
+    pokedex_clean.name,
+    pokedex_clean.type1,
+    pokedex_clean.type2
+ORDER BY total_advantage DESC;
