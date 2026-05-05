@@ -1,0 +1,21 @@
+DROP TABLE IF EXISTS misty_team;
+
+CREATE TABLE misty_team (
+    pokemon_id INTEGER,
+    name TEXT,
+    type1 TEXT,
+    type2 TEXT,
+    hp INTEGER,
+    attack INTEGER,
+    defense INTEGER,
+    evolution_stage INTEGER,
+    evolves_to TEXT
+);
+
+INSERT INTO misty_team (
+    pokemon_id, name, type1, type2, hp, attack, defense, evolution_stage, evolves_to
+)
+SELECT
+    pokemon_id, name, type1, type2, hp, attack, defense, evolution_stage, evolves_to
+FROM pokedex_clean
+WHERE pokemon_id IN (65, 121, 124, 130, 131, 134);
