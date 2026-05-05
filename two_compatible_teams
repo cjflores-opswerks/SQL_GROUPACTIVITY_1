@@ -1,0 +1,11 @@
+SELECT
+  name,
+  CASE 
+    WHEN rank % 2 = 1 THEN 'Team A'
+    ELSE 'Team B'
+  END AS assigned_teams
+FROM ranked_candidates
+WHERE rank <= 12
+ORDER BY
+  assigned_teams,
+  rank ASC;
