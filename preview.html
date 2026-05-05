@@ -1,0 +1,133 @@
+<div style="
+    border: 1px solid #555;
+    border-radius: 10px;
+    background-color: #2b2b2b;
+    color: #f1f1f1;
+    font-family: monospace;
+    width: 100%;
+    max-width: 900px;
+    overflow: hidden;
+">
+
+    <div style="
+        padding: 10px 14px;
+        border-bottom: 1px solid #555;
+        color: #cfcfcf;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        background-color: #2b2b2b;
+    ">
+        Plain Text
+    </div>
+
+    <pre style="
+        margin: 0;
+        padding: 16px;
+        max-height: 500px;
+        overflow: auto;
+        white-space: pre;
+        font-size: 15px;
+        line-height: 1.5;
+    "><code>CREATE TABLE candidate_matchups AS
+WITH pokemon_rankings AS (
+    SELECT
+        pokedex_clean.name,
+        pokedex_clean.type1,
+        pokedex_clean.type2,
+        -- FIXED: Cast to FLOAT to prevent integer division errors
+        ROUND(
+            (
+                CAST(pokedex_clean.hp AS FLOAT)
+                + pokedex_clean.attack
+                + pokedex_clean.defense
+            ) / 3.0,
+            2
+        ) AS stats_score,
+        SUM(
+            (
+                SELECT CASE
+                    WHEN effectiveness = 'super effective' THEN 2.0
+                    WHEN effectiveness = 'not very effective' THEN 0.5
+                    WHEN effectiveness = 'no effect' THEN 0.0
+                    ELSE 1.0
+                END
+                FROM type_advantage
+                WHERE UPPER(attacking_type) = UPPER(pokedex_clean.type1)
+                  AND UPPER(defending_type) = UPPER(misty_team.type1)
+                UNION ALL
+                SELECT 1.0
+                LIMIT 1
+            )
+            *
+            (
+                SELECT CASE
+                    WHEN effectiveness = 'super effective' THEN 2.0
+                    WHEN effectiveness = 'not very effective' THEN 0.5
+                    WHEN effectiveness = 'no effect' THEN 0.0
+                    ELSE 1.0
+                END
+                FROM type_advantage
+                WHERE UPPER(attacking_type) = UPPER(pokedex_clean.type1)
+                  AND UPPER(defending_type) = UPPER(misty_team.type2)
+                UNION ALL
+                SELECT 1.0
+                LIMIT 1
+            )
+            *
+            (
+                SELECT CASE
+                    WHEN effectiveness = 'super effective' THEN 2.0
+                    WHEN effectiveness = 'not very effective' THEN 0.5
+                    WHEN effectiveness = 'no effect' THEN 0.0
+                    ELSE 1.0
+                END
+                FROM type_advantage
+                WHERE UPPER(attacking_type) = UPPER(pokedex_clean.type2)
+                  AND UPPER(defending_type) = UPPER(misty_team.type1)
+                UNION ALL
+                SELECT 1.0
+                LIMIT 1
+            )
+            *
+            (
+                SELECT CASE
+                    WHEN effectiveness = 'super effective' THEN 2.0
+                    WHEN effectiveness = 'not very effective' THEN 0.5
+                    WHEN effectiveness = 'no effect' THEN 0.0
+                    ELSE 1.0
+                END
+                FROM type_advantage
+                WHERE UPPER(attacking_type) = UPPER(pokedex_clean.type2)
+                  AND UPPER(defending_type) = UPPER(misty_team.type2)
+                UNION ALL
+                SELECT 1.0
+                LIMIT 1
+            )
+        ) AS total_advantage
+    FROM pokedex_clean
+    CROSS JOIN misty_team
+    WHERE (
+        pokedex_clean.evolves_to IS NULL
+        OR pokedex_clean.evolves_to = ''
+        OR pokedex_clean.evolves_to = 'None'
+    )
+    GROUP BY
+        pokedex_clean.name,
+        pokedex_clean.type1,
+        pokedex_clean.type2,
+        pokedex_clean.hp,
+        pokedex_clean.attack,
+        pokedex_clean.defense
+)
+
+SELECT
+    name,
+    type1,
+    type2,
+    stats_score,
+    total_advantage,
+    -- Formula: (Total Advantage * 10) + Stats Score
+    ROUND((total_advantage * 10) + stats_score, 2) AS final_score
+FROM pokemon_rankings
+ORDER BY final_score DESC;</code></pre>
+</div>
