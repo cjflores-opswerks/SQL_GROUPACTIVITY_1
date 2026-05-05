@@ -1,78 +1,70 @@
+DROP TABLE IF EXISTS candidate_matchups;
+
 CREATE TABLE candidate_matchups AS
-SELECT
-    pokedex_clean.name,
-    pokedex_clean.type1,
-    pokedex_clean.type2,
-    SUM(
-        (
-            SELECT CASE
-                WHEN effectiveness = 'super effective' THEN 2.0
-                WHEN effectiveness = 'not very effective' THEN 0.5
-                WHEN effectiveness = 'no effect' THEN 0.0
-                ELSE 1.0
-            END
-            FROM type_advantage
-            WHERE UPPER(attacking_type) = UPPER(pokedex_clean.type1)
-              AND UPPER(defending_type) = UPPER(misty_team.type1)
-            UNION ALL
-            SELECT 1.0
-            LIMIT 1
-        )
-        *
-        (
-            SELECT CASE
-                WHEN effectiveness = 'super effective' THEN 2.0
-                WHEN effectiveness = 'not very effective' THEN 0.5
-                WHEN effectiveness = 'no effect' THEN 0.0
-                ELSE 1.0
-            END
-            FROM type_advantage
-            WHERE UPPER(attacking_type) = UPPER(pokedex_clean.type1)
-              AND UPPER(defending_type) = UPPER(misty_team.type2)
-            UNION ALL
-            SELECT 1.0
-            LIMIT 1
-        )
-        *
-        (
-            SELECT CASE
-                WHEN effectiveness = 'super effective' THEN 2.0
-                WHEN effectiveness = 'not very effective' THEN 0.5
-                WHEN effectiveness = 'no effect' THEN 0.0
-                ELSE 1.0
-            END
-            FROM type_advantage
-            WHERE UPPER(attacking_type) = UPPER(pokedex_clean.type2)
-              AND UPPER(defending_type) = UPPER(misty_team.type1)
-            UNION ALL
-            SELECT 1.0
-            LIMIT 1
-        )
-        *
-        (
-            SELECT CASE
-                WHEN effectiveness = 'super effective' THEN 2.0
-                WHEN effectiveness = 'not very effective' THEN 0.5
-                WHEN effectiveness = 'no effect' THEN 0.0
-                ELSE 1.0
-            END
-            FROM type_advantage
-            WHERE UPPER(attacking_type) = UPPER(pokedex_clean.type2)
-              AND UPPER(defending_type) = UPPER(misty_team.type2)
-            UNION ALL
-            SELECT 1.0
-            LIMIT 1
-        )
-    ) AS total_advantage
-FROM pokedex_clean
-CROSS JOIN misty_team
-WHERE (
-    pokedex_clean.evolves_to IS NULL
-    OR pokedex_clean.evolves_to = ''
-    OR pokedex_clean.evolves_to = 'None'
-)
-GROUP BY
-    pokedex_clean.name,
-    pokedex_clean.type1,
-    pokedex_clean.type2
-ORDER BY total_advantage DESC;
+WITH type_values AS (  
+SELECT   
+UPPER(attacking_type) AS attacking_type,  
+UPPER(defending_type) AS defending_type,  
+  CASE effectiveness  
+    WHEN 'super effective' THEN 2.0  
+    WHEN 'not very effective' THEN 0.5  
+    WHEN 'no effect' THEN 0.0  
+    ELSE 1.0  
+  END AS multiplier  
+FROM type_advantage  
+),  
+candidates AS (  
+SELECT  
+  name,  
+  type1,  
+  type2,  
+  attack,  
+  ROUND((CAST(hp AS INTEGER) + CAST(attack AS INTEGER) + CAST(defense AS INTEGER)) / 3.0, 2) AS stat_score  
+FROM pokedex_clean  
+WHERE evolves_to IS NULL OR evolves_to = ''  
+),  
+matchups AS (  
+SELECT   
+ c.name AS candidate_name,  
+ c.type1,  
+ c.type2,  
+ c.stat_score,  
+ m.name AS opponent_name,  
+  
+COALESCE((SELECT multiplier FROM type_values WHERE attacking_type = c.type1 AND defending_type = m.type1), 1.0) *  
+COALESCE((SELECT multiplier FROM type_values WHERE attacking_type = c.type1 AND defending_type = m.type2), 1.0) AS t1_mult,  
+  
+CASE WHEN c.type2 IS NOT NULL AND c.type2 != '' THEN  
+   COALESCE((SELECT multiplier FROM type_values WHERE attacking_type = c.type2 AND defending_type = m.type1), 1.0) *  
+   COALESCE((SELECT multiplier FROM type_values WHERE attacking_type = c.type2 AND defending_type = m.type2), 1.0)  
+   ELSE 0.0  
+  END AS t2_mult  
+  
+FROM candidates c  
+CROSS JOIN misty_team m  
+),  
+best_attack AS (  
+SELECT   
+ candidate_name,  
+ type1,  
+ type2,  
+ stat_score,  
+MAX(t1_mult, t2_mult) AS best_multiplier  
+FROM matchups  
+)  
+  
+SELECT  
+ candidate_name AS name,  
+ type1,  
+ type2,  
+ stat_score,  
+SUM(best_multiplier) AS total_advantage  
+FROM best_attack  
+GROUP BY  
+ candidate_name,  
+ type1,  
+ type2,  
+ stat_score  
+ORDER BY  
+ total_advantage DESC,  
+ stat_score DESC;
